@@ -148,7 +148,7 @@ function getPageQuery(req) {
     console.log("page:" + page + ",rows:" + rows);
     return Movie.find({})
         .sort("-update_time")
-        .select("time update_time title countries types image_url")
+        .select("time update_time title countries types image_url introduce")
         .skip((page - 1) * rows)
         .limit(rows);
 }
