@@ -92,6 +92,13 @@ router.route("/movies/detail/:id").get(function (req, res) {
     });
 });
 
+//搜索
+router.route("/search/:name").get(function (req, res) {
+    getPageQuery(req).find({$or: [{title: new RegExp(req.params.name)}, {actors: new RegExp(req.params.name)}]}, function (error, movies) {
+        res.send(error || movies);
+    })
+});
+
 //获取电影的类型
 router.route("/movies/category").get(function (req, res) {
     var typeArray = [];
@@ -148,7 +155,7 @@ function getPageQuery(req) {
     console.log("page:" + page + ",rows:" + rows);
     return Movie.find({})
         .sort("-update_time")
-        .select("time update_time title countries types image_url introduce")
+        .select("time update_time title countries types image_url introduce crawl_url")
         .skip((page - 1) * rows)
         .limit(rows);
 }
