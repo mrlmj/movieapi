@@ -6,8 +6,8 @@ var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 var movieSchema = new Schema({
     title: String,
-    time: String,
-    update_time: Date,
+    time: Number,
+    update_time: String,
     introduce: [String],
     image_url: String,
     crawl_url: String,
@@ -21,10 +21,15 @@ var movieSchema = new Schema({
 var Movie = mongoose.model("Movie", movieSchema);
 
 var type_map = {
+    "all": "全部分类",
     "movie": "电影",
     "teleplay": "电视剧",
     "carton": "动漫",
-    "vr": "VR视频",
+    "vr": "VR视频"
+};
+
+var category_map = {
+    "all": "全部类型",
     "action": "动作",
     "science": "科幻",
     "comedy": "喜剧",
@@ -62,7 +67,19 @@ var type_map = {
     "talk": "脱口秀"
 };
 
+var year_map = {
+    "all": "不限",
+    "y2017": "2017",
+    "y2016": "2016",
+    "y2015": "2015",
+    "y2014": "2014",
+    "y2013": "2013",
+    "y2012": "2012",
+    "old": "更早"
+};
+
 var country_map = {
+    "all": "全部地区",
     "china" : "大陆",
     "hk" : "香港",
     "taiwan" : "台湾",
@@ -72,6 +89,26 @@ var country_map = {
     "thailand" : "泰国",
     "india" : "印度"
 };
+
+//获取电影的类型
+router.route("/movies/type").get(function (req, res) {
+    res.send(type_map);
+});
+
+//获取电影的分类
+router.route("/movies/category").get(function (req, res) {
+    res.send(category_map);
+});
+
+//获取电影的年代
+router.route("/movies/time").get(function (req, res) {
+    res.send(year_map);
+});
+
+//获取电影的地区
+router.route("/movies/country").get(function (req, res) {
+    res.send(country_map);
+});
 
 //调试用
 router.route("/movies/debug").get(function (req, res) {
@@ -88,30 +125,24 @@ router.route("/movies/debug").get(function (req, res) {
 router.route("/movies/detail/:id").get(function (req, res) {
     var movieId = req.params.id;
     Movie.findOne({_id: movieId}, function (error, movie) {
+        formatMovieItem(movie);
         res.send(error || movie);
+
     });
 });
 
 //搜索
-router.route("/search/:name").get(function (req, res) {
+router.route("/movies/search/:name/:limit/:page").get(function (req, res) {
     getPageQuery(req).find({$or: [{title: new RegExp(req.params.name)}, {actors: new RegExp(req.params.name)}]}, function (error, movies) {
         res.send(error || movies);
     })
-});
-
-//获取电影的类型
-router.route("/movies/category").get(function (req, res) {
-    var typeArray = [];
-    for (var type in type_map) {
-        typeArray.push(type);
-    }
-    res.send(typeArray);
 });
 
 //查询全部影片列表
 router.route("/movies/:limit/:page").get(function (req, res) {
     var query = getPageQuery(req);
     query.exec(function (error, movies) {
+        formatMovieItem(movies);
         res.send(error || movies);
     });
 });
@@ -120,6 +151,7 @@ router.route("/movies/:limit/:page").get(function (req, res) {
 router.route("/movies/:type/:limit/:page").get(function (req, res) {
     getTypeQuery(getPageQuery(req), req)
         .exec(function (error, movies) {
+            formatMovieItem(movies);
             res.send(error || movies);
         });
 });
@@ -128,6 +160,7 @@ router.route("/movies/:type/:limit/:page").get(function (req, res) {
 router.route("/movies/:type/:category/:limit/:page").get(function (req, res) {
     getCategoryQuery(getPageQuery(req), req)
         .exec(function (error, movies) {
+            formatMovieItem(movies);
             res.send(error || movies);
         });
 });
@@ -136,6 +169,7 @@ router.route("/movies/:type/:category/:limit/:page").get(function (req, res) {
 router.route("/movies/:type/:category/:year/:limit/:page").get(function (req, res) {
     getYearQuery(getCategoryQuery(getPageQuery(req), req), req)
         .exec(function (error, movies) {
+            formatMovieItem(movies);
             res.send(error || movies);
         });
 });
@@ -144,6 +178,7 @@ router.route("/movies/:type/:category/:year/:limit/:page").get(function (req, re
 router.route("/movies/:type/:category/:year/:country/:limit/:page").get(function (req, res) {
     getCountryQuery(getYearQuery(getCategoryQuery(getPageQuery(req), req), req), req)
         .exec(function (error, movies) {
+            formatMovieItem(movies);
             res.send(error || movies);
         });
 });
@@ -181,7 +216,7 @@ function getCategoryQuery(query, req) {
         typeQueryCondition.push(type_map[type]);
     }
     if (category != "all") {
-        typeQueryCondition.push(type_map[category]);
+        typeQueryCondition.push(category_map[category]);
     }
     if (typeQueryCondition.length > 0) {
         return query.where("types").all(typeQueryCondition);
@@ -193,10 +228,12 @@ function getCategoryQuery(query, req) {
 
 function getYearQuery(query, req) {
     var year = req.params.year;
-    if (year != "all") {
-        return query.where("time").equals(year);
-    } else {
+    if (year == "all") {
         return query;
+    } else if (year == "old") {
+        return query.where("time").lt(2012);
+    } else {
+        return query.where("time").equals(parseInt(year.substring(1)));
     }
 }
 
@@ -210,6 +247,18 @@ function getCountryQuery(query, req) {
         return query.where("countries").all(countryQueryCondition);
     } else {
         return query;
+    }
+}
+
+function formatMovieItem(movies) {
+    if (movies instanceof Array) {
+        movies.map(function (movie) {
+            var formatDate = new Date(movie.update_time);
+            movie.update_time = formatDate.getFullYear() + "-" + (formatDate.getMonth() + 1) + "-" + formatDate.getDate();
+        });
+    } else if (movies != null) {
+        var formatDate = new Date(movies.update_time);
+        movies.update_time = formatDate.getFullYear() + "-" + (formatDate.getMonth() + 1) + "-" + formatDate.getDate();
     }
 }
 
