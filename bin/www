@@ -6,20 +6,25 @@
 
 var app = require('../app');
 var debug = require('debug')('movieapi:server');
-var http = require('http');
+var http = require('https');
+var fs = require('fs');
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '3000');
+var port = normalizePort(process.env.PORT || '3389');
 app.set('port', port);
 
 /**
  * Create HTTP server.
  */
+console.log(process.cwd());
+var privateKey  = fs.readFileSync('cer/private.pem', 'utf8');
+var certificate = fs.readFileSync('cer/file.crt', 'utf8');
+var credentials = {key: privateKey, cert: certificate};
 
-var server = http.createServer(app);
+var server = http.createServer(credentials, app);
 
 /**
  * Listen on provided port, on all network interfaces.
